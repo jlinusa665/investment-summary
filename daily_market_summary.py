@@ -175,6 +175,11 @@ def get_sample_data():
 # Market Data Fetching
 # =============================================================================
 # Uses yfinance library to fetch real-time data from Yahoo Finance API
+# yfinance uses dashes instead of dots for share classes (e.g., BRK-B not BRK.B)
+YFINANCE_SYMBOL_MAP = {
+    "BRK.B": "BRK-B",
+    "BRK.A": "BRK-A",
+}
 
 def fetch_ticker_data(symbol, name):
     """
@@ -191,7 +196,8 @@ def fetch_ticker_data(symbol, name):
 
     try:
         # Create ticker object and fetch data
-        ticker = yf.Ticker(symbol)
+        yf_symbol = YFINANCE_SYMBOL_MAP.get(symbol, symbol)
+        ticker = yf.Ticker(yf_symbol)
 
         # Get current market data
         info = ticker.info
@@ -265,6 +271,16 @@ def fetch_market_data():
     # Include error details if any occurred
     if errors:
         result["errors"] = errors
+
+    # Fetch data for portfolio stocks not already in STOCKS list
+    tracked_symbols = {s[0] for s in STOCKS}
+    for symbol in PORTFOLIO:
+        if symbol not in tracked_symbols:
+            key = symbol.lower()
+            data = fetch_ticker_data(symbol, symbol)
+            stocks_data[key] = data
+            if "error" in data:
+                errors.append(f"{symbol}: {data['error']}")
 
     # Calculate portfolio summary if holdings exist
     if PORTFOLIO:
