@@ -11,7 +11,7 @@ import json
 import sys
 from datetime import datetime
 
-from load_portfolio import load_portfolio
+from load_portfolio import load_portfolio, load_full_portfolio
 
 # =============================================================================
 # Ticker Configuration
@@ -47,7 +47,14 @@ MOCK_PORTFOLIO = {
     "TSLA": 30,     # 30 shares of Tesla
 }
 
-PORTFOLIO = load_portfolio() or MOCK_PORTFOLIO
+# Load full portfolio (stocks + options) if available
+_full_portfolio = load_full_portfolio()
+if _full_portfolio:
+    PORTFOLIO = _full_portfolio["stocks_portfolio"]
+    OPTIONS_PORTFOLIO = _full_portfolio["options_portfolio"]
+else:
+    PORTFOLIO = MOCK_PORTFOLIO
+    OPTIONS_PORTFOLIO = []
 
 # =============================================================================
 # Argument Parsing
@@ -286,6 +293,10 @@ def fetch_market_data():
     if PORTFOLIO:
         result["portfolio"] = calculate_portfolio_summary(stocks_data)
 
+    # Calculate options summary if options exist
+    if OPTIONS_PORTFOLIO:
+        result["options"] = calculate_options_summary(OPTIONS_PORTFOLIO)
+
     return result
 
 
@@ -343,6 +354,76 @@ def calculate_portfolio_summary(stocks_data):
         "total_portfolio_change_dollars": round(daily_change_dollars, 2),
         "total_portfolio_change_percent": round(daily_change_percent, 2),
         "per_stock_holdings": holdings_detail
+    }
+
+
+# =============================================================================
+# Options Calculations
+# =============================================================================
+# Calculates options summary including totals, expiring soon, and position summaries
+
+def calculate_options_summary(options_portfolio):
+    """
+    Calculate options portfolio summary.
+
+    Args:
+        options_portfolio: List of option position dictionaries
+
+    Returns:
+        Dictionary with options totals, positions, expiring soon, and summaries
+    """
+    if not options_portfolio:
+        return None
+
+    total_value = 0.0
+    total_days_gain = 0.0
+    expiring_soon = []
+    long_count = 0
+    long_value = 0.0
+    short_count = 0
+    short_value = 0.0
+
+    for opt in options_portfolio:
+        value = opt.get("current_value", 0.0)
+        days_gain = opt.get("days_gain", 0.0)
+        days_to_exp = opt.get("days_to_expiration", 999)
+        is_short = opt.get("is_short", False)
+
+        total_value += value
+        total_days_gain += days_gain
+
+        # Track expiring soon (< 7 days)
+        if days_to_exp < 7:
+            expiring_soon.append(opt)
+
+        # Track long vs short positions
+        if is_short:
+            short_count += 1
+            short_value += value
+        else:
+            long_count += 1
+            long_value += value
+
+    # Calculate percentage change (based on previous value)
+    previous_value = total_value - total_days_gain
+    change_percent = 0.0
+    if previous_value != 0:
+        change_percent = (total_days_gain / abs(previous_value)) * 100
+
+    return {
+        "total_options_value": round(total_value, 2),
+        "total_options_change_dollars": round(total_days_gain, 2),
+        "total_options_change_percent": round(change_percent, 2),
+        "options_positions": options_portfolio,
+        "expiring_soon": expiring_soon,
+        "long_positions_summary": {
+            "count": long_count,
+            "total_value": round(long_value, 2)
+        },
+        "short_positions_summary": {
+            "count": short_count,
+            "total_value": round(short_value, 2)
+        }
     }
 
 
