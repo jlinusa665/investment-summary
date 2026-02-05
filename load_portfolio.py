@@ -190,6 +190,7 @@ def load_full_portfolio(csv_path=PORTFOLIO_CSV):
                     "option_type": option_info["option_type"],
                     "days_to_expiration": option_info["days_to_expiration"],
                     "quantity": quantity,
+                    "is_short": quantity < 0,
                     "position_type": "short" if quantity < 0 else "long",
                     "price_paid": parse_float(row.get("Price Paid $")),
                     "current_price": parse_float(row.get("Last Price $")),
