@@ -11,6 +11,8 @@ import json
 import sys
 from datetime import datetime
 
+from load_portfolio import load_portfolio
+
 # =============================================================================
 # Ticker Configuration
 # =============================================================================
@@ -33,17 +35,19 @@ STOCKS = [
 # =============================================================================
 # Portfolio Configuration
 # =============================================================================
-# Define your portfolio holdings here
-# Format: {"SYMBOL": number_of_shares}
-# Only stocks listed here will be included in portfolio calculations
+# Loaded from private_data/portfolio.csv if available, otherwise uses mock data.
+# The CSV should have columns: Symbol, Quantity, etc.
+# Options (Call/Put), CASH, and TOTAL rows are automatically filtered out.
 
-PORTFOLIO = {
+MOCK_PORTFOLIO = {
     "AAPL": 100,    # 100 shares of Apple
     "MSFT": 50,     # 50 shares of Microsoft
     "GOOGL": 25,    # 25 shares of Alphabet
     "NVDA": 50,     # 50 shares of NVIDIA
     "TSLA": 30,     # 30 shares of Tesla
 }
+
+PORTFOLIO = load_portfolio() or MOCK_PORTFOLIO
 
 # =============================================================================
 # Argument Parsing
