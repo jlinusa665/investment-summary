@@ -296,6 +296,7 @@ def fetch_market_data():
     # Calculate options summary if options exist
     if OPTIONS_PORTFOLIO:
         result["options"] = calculate_options_summary(OPTIONS_PORTFOLIO)
+        result["action_recommendations"] = calculate_action_recommendations(OPTIONS_PORTFOLIO)
 
     return result
 
@@ -424,6 +425,159 @@ def calculate_options_summary(options_portfolio):
             "count": short_count,
             "total_value": round(short_value, 2)
         }
+    }
+
+
+# =============================================================================
+# Action Recommendations
+# =============================================================================
+# Analyzes options positions and generates prioritized action recommendations
+
+def calculate_time_urgency_score(days_to_expiration):
+    """Calculate time urgency score (0-100) based on days to expiration."""
+    if days_to_expiration < 7:
+        return 100
+    elif days_to_expiration <= 14:
+        return 80
+    elif days_to_expiration <= 30:
+        return 60
+    elif days_to_expiration <= 60:
+        return 40
+    else:
+        # Scale down from 40 to 0 for 60-180 days, then 0 beyond
+        if days_to_expiration >= 180:
+            return 0
+        return max(0, 40 - ((days_to_expiration - 60) * 40 / 120))
+
+
+def calculate_action_recommendations(options_portfolio):
+    """
+    Generate action recommendations for options positions.
+
+    Args:
+        options_portfolio: List of option position dictionaries
+
+    Returns:
+        Dictionary with categorized recommendations and scored positions
+    """
+    if not options_portfolio:
+        return None
+
+    # Find the largest absolute loss for scaling
+    max_loss_dollars = 0.0
+    for opt in options_portfolio:
+        total_gain = opt.get("total_gain", 0.0)
+        if total_gain < 0:
+            max_loss_dollars = max(max_loss_dollars, abs(total_gain))
+
+    # Process each position and calculate scores
+    scored_positions = []
+
+    for opt in options_portfolio:
+        days_to_exp = opt.get("days_to_expiration", 999)
+        total_gain = opt.get("total_gain", 0.0)
+        total_gain_percent = opt.get("total_gain_percent", 0.0)
+        is_short = opt.get("is_short", False)
+        current_value = opt.get("current_value", 0.0)
+
+        # Calculate time urgency score
+        time_score = calculate_time_urgency_score(days_to_exp)
+
+        # Calculate loss dollar score (0-100, only for losing positions)
+        loss_dollar_score = 0.0
+        if total_gain < 0 and max_loss_dollars > 0:
+            loss_dollar_score = (abs(total_gain) / max_loss_dollars) * 100
+
+        # Calculate loss percent score (0-100)
+        loss_percent_score = 0.0
+        if total_gain_percent < 0:
+            # Scale from 0 at 0% loss to 100 at -100% loss (or worse)
+            loss_percent_score = min(100, abs(total_gain_percent))
+
+        # Combined score: time * 0.4 + loss_dollar * 0.3 + loss_percent * 0.3
+        combined_score = (time_score * 0.4) + (loss_dollar_score * 0.3) + (loss_percent_score * 0.3)
+
+        # Determine urgency level
+        if combined_score >= 90:
+            urgency_level = "CRITICAL"
+        elif combined_score >= 70:
+            urgency_level = "HIGH"
+        elif combined_score >= 50:
+            urgency_level = "MEDIUM"
+        else:
+            urgency_level = "LOW"
+
+        # Determine recommended action
+        recommended_action = ""
+        if is_short and total_gain_percent >= 60:
+            recommended_action = f"BUY TO CLOSE - Lock in {total_gain_percent:.1f}% profit (TAKE PROFIT NOW)"
+        elif is_short and total_gain_percent >= 50:
+            recommended_action = f"BUY TO CLOSE - Lock in {total_gain_percent:.1f}% profit (CONSIDER CLOSING)"
+        elif total_gain < 0:
+            if combined_score >= 90:
+                recommended_action = "CLOSE IMMEDIATELY - Catastrophic loss, time running out"
+            elif combined_score >= 70:
+                recommended_action = "HIGH PRIORITY - Consider closing to stop losses"
+            elif combined_score >= 50:
+                recommended_action = "MONITOR - Review position, consider action if worsens"
+            else:
+                recommended_action = "WATCH - Track position for changes"
+        else:
+            recommended_action = "HOLD - Position is profitable, no immediate action needed"
+
+        position_data = {
+            "symbol": opt.get("symbol"),
+            "underlying_symbol": opt.get("underlying_symbol"),
+            "days_to_expiration": days_to_exp,
+            "expiration_date": opt.get("expiration_date"),
+            "current_value": current_value,
+            "total_gain": total_gain,
+            "total_gain_percent": total_gain_percent,
+            "position_type": opt.get("position_type"),
+            "is_short": is_short,
+            "time_urgency_score": round(time_score, 2),
+            "loss_dollar_score": round(loss_dollar_score, 2),
+            "loss_percent_score": round(loss_percent_score, 2),
+            "combined_priority_score": round(combined_score, 2),
+            "urgency_level": urgency_level,
+            "recommended_action": recommended_action,
+            "cost_to_close": round(abs(current_value), 2)
+        }
+        scored_positions.append(position_data)
+
+    # Categorize positions
+    profit_taking_opportunities = [
+        p for p in scored_positions
+        if p["is_short"] and p["total_gain_percent"] >= 50
+    ]
+    profit_taking_opportunities.sort(key=lambda x: x["total_gain_percent"], reverse=True)
+
+    urgent_losses = [
+        p for p in scored_positions
+        if p["combined_priority_score"] >= 70 or (p["days_to_expiration"] < 7 and p["total_gain"] < 0)
+    ]
+    urgent_losses.sort(key=lambda x: x["combined_priority_score"], reverse=True)
+
+    expiring_this_week = [
+        p for p in scored_positions
+        if p["days_to_expiration"] <= 7
+    ]
+    expiring_this_week.sort(key=lambda x: x["days_to_expiration"])
+
+    expiring_next_week = [
+        p for p in scored_positions
+        if p["days_to_expiration"] <= 14
+    ]
+    expiring_next_week.sort(key=lambda x: x["days_to_expiration"])
+
+    all_by_priority = sorted(scored_positions, key=lambda x: x["combined_priority_score"], reverse=True)
+
+    return {
+        "profit_taking_opportunities": profit_taking_opportunities,
+        "urgent_losses": urgent_losses,
+        "expiring_this_week": expiring_this_week,
+        "expiring_next_week": expiring_next_week,
+        "all_positions_by_priority": all_by_priority
     }
 
 
