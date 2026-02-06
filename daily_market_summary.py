@@ -71,6 +71,12 @@ def parse_arguments():
         action="store_true",
         help="Return sample data without making API calls"
     )
+    parser.add_argument(
+        "--timing",
+        choices=["morning", "close"],
+        default=None,
+        help="Timing mode: 'morning' for pre-market preview, 'close' for end-of-day recap"
+    )
     return parser.parse_args()
 
 
@@ -172,6 +178,143 @@ def get_sample_data():
                     "daily_change_dollars": -121.50
                 }
             }
+        },
+        "options": {
+            "total_options_value": 5250.00,
+            "total_options_change_dollars": 125.50,
+            "total_options_change_percent": 2.45,
+            "options_positions": [
+                {
+                    "symbol": "AAPL250207C00190000",
+                    "underlying_symbol": "AAPL",
+                    "position_type": "Call",
+                    "is_short": True,
+                    "days_to_expiration": 0,
+                    "expiration_date": "2025-02-07",
+                    "current_value": -850.00,
+                    "days_gain": 75.00,
+                    "total_gain": 425.00,
+                    "total_gain_percent": 33.3
+                },
+                {
+                    "symbol": "MSFT250214P00400000",
+                    "underlying_symbol": "MSFT",
+                    "position_type": "Put",
+                    "is_short": False,
+                    "days_to_expiration": 1,
+                    "expiration_date": "2025-02-14",
+                    "current_value": 1200.00,
+                    "days_gain": -150.00,
+                    "total_gain": -300.00,
+                    "total_gain_percent": -20.0
+                },
+                {
+                    "symbol": "NVDA250221C00700000",
+                    "underlying_symbol": "NVDA",
+                    "position_type": "Call",
+                    "is_short": True,
+                    "days_to_expiration": 7,
+                    "expiration_date": "2025-02-21",
+                    "current_value": -2100.00,
+                    "days_gain": 200.50,
+                    "total_gain": 1850.00,
+                    "total_gain_percent": 46.8
+                }
+            ]
+        },
+        "action_recommendations": {
+            "profit_taking_opportunities": [],
+            "urgent_losses": [
+                {
+                    "symbol": "MSFT250214P00400000",
+                    "underlying_symbol": "MSFT",
+                    "days_to_expiration": 1,
+                    "expiration_date": "2025-02-14",
+                    "current_value": 1200.00,
+                    "total_gain": -300.00,
+                    "total_gain_percent": -20.0,
+                    "position_type": "Put",
+                    "is_short": False,
+                    "combined_priority_score": 85.0,
+                    "urgency_level": "HIGH",
+                    "recommended_action": "HIGH PRIORITY - Consider closing to stop losses"
+                }
+            ],
+            "expiring_this_week": [
+                {
+                    "symbol": "AAPL250207C00190000",
+                    "underlying_symbol": "AAPL",
+                    "days_to_expiration": 0,
+                    "expiration_date": "2025-02-07",
+                    "current_value": -850.00,
+                    "total_gain": 425.00,
+                    "total_gain_percent": 33.3,
+                    "position_type": "Call",
+                    "is_short": True,
+                    "combined_priority_score": 40.0,
+                    "urgency_level": "LOW",
+                    "recommended_action": "HOLD - Position is profitable, no immediate action needed"
+                },
+                {
+                    "symbol": "MSFT250214P00400000",
+                    "underlying_symbol": "MSFT",
+                    "days_to_expiration": 1,
+                    "expiration_date": "2025-02-14",
+                    "current_value": 1200.00,
+                    "total_gain": -300.00,
+                    "total_gain_percent": -20.0,
+                    "position_type": "Put",
+                    "is_short": False,
+                    "combined_priority_score": 85.0,
+                    "urgency_level": "HIGH",
+                    "recommended_action": "HIGH PRIORITY - Consider closing to stop losses"
+                }
+            ],
+            "expiring_next_week": [],
+            "all_positions_by_priority": [
+                {
+                    "symbol": "MSFT250214P00400000",
+                    "underlying_symbol": "MSFT",
+                    "days_to_expiration": 1,
+                    "expiration_date": "2025-02-14",
+                    "current_value": 1200.00,
+                    "total_gain": -300.00,
+                    "total_gain_percent": -20.0,
+                    "position_type": "Put",
+                    "is_short": False,
+                    "combined_priority_score": 85.0,
+                    "urgency_level": "HIGH",
+                    "recommended_action": "HIGH PRIORITY - Consider closing to stop losses"
+                },
+                {
+                    "symbol": "NVDA250221C00700000",
+                    "underlying_symbol": "NVDA",
+                    "days_to_expiration": 7,
+                    "expiration_date": "2025-02-21",
+                    "current_value": -2100.00,
+                    "total_gain": 1850.00,
+                    "total_gain_percent": 46.8,
+                    "position_type": "Call",
+                    "is_short": True,
+                    "combined_priority_score": 40.0,
+                    "urgency_level": "LOW",
+                    "recommended_action": "HOLD - Position is profitable, no immediate action needed"
+                },
+                {
+                    "symbol": "AAPL250207C00190000",
+                    "underlying_symbol": "AAPL",
+                    "days_to_expiration": 0,
+                    "expiration_date": "2025-02-07",
+                    "current_value": -850.00,
+                    "total_gain": 425.00,
+                    "total_gain_percent": 33.3,
+                    "position_type": "Call",
+                    "is_short": True,
+                    "combined_priority_score": 40.0,
+                    "urgency_level": "LOW",
+                    "recommended_action": "HOLD - Position is profitable, no immediate action needed"
+                }
+            ]
         },
         "status": "success",
         "mode": "test"
@@ -582,6 +725,246 @@ def calculate_action_recommendations(options_portfolio):
 
 
 # =============================================================================
+# Timing Mode Functions
+# =============================================================================
+# Generate morning preview or market close recap based on timing mode
+
+def fetch_premarket_futures():
+    """
+    Fetch pre-market S&P 500 futures data.
+
+    Returns:
+        Dictionary with futures current price, previous close, and trend
+    """
+    import yfinance as yf
+
+    try:
+        # ES=F is the S&P 500 E-mini futures symbol
+        ticker = yf.Ticker("ES=F")
+        info = ticker.info
+
+        current_price = info.get("regularMarketPrice") or info.get("currentPrice")
+        previous_close = info.get("regularMarketPreviousClose") or info.get("previousClose")
+
+        if current_price is None or previous_close is None:
+            return {"error": "Could not retrieve futures data"}
+
+        change = current_price - previous_close
+        change_percent = (change / previous_close) * 100
+
+        if change_percent > 0.3:
+            trend = "bullish"
+        elif change_percent < -0.3:
+            trend = "bearish"
+        else:
+            trend = "neutral"
+
+        return {
+            "symbol": "ES=F",
+            "name": "S&P 500 E-mini Futures",
+            "current_price": round(current_price, 2),
+            "previous_close": round(previous_close, 2),
+            "change": round(change, 2),
+            "change_percent": round(change_percent, 2),
+            "trend": trend
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def fetch_premarket_vix():
+    """
+    Fetch pre-market VIX level.
+
+    Returns:
+        Dictionary with VIX current level and interpretation
+    """
+    import yfinance as yf
+
+    try:
+        ticker = yf.Ticker("^VIX")
+        info = ticker.info
+
+        current_price = info.get("regularMarketPrice") or info.get("currentPrice")
+        previous_close = info.get("regularMarketPreviousClose") or info.get("previousClose")
+
+        if current_price is None:
+            return {"error": "Could not retrieve VIX data"}
+
+        # VIX interpretation
+        if current_price < 15:
+            interpretation = "low_volatility"
+        elif current_price < 20:
+            interpretation = "normal"
+        elif current_price < 30:
+            interpretation = "elevated"
+        else:
+            interpretation = "high_volatility"
+
+        result = {
+            "symbol": "^VIX",
+            "name": "CBOE Volatility Index",
+            "current_level": round(current_price, 2),
+            "interpretation": interpretation
+        }
+
+        if previous_close:
+            result["previous_close"] = round(previous_close, 2)
+            result["change"] = round(current_price - previous_close, 2)
+
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def generate_morning_preview(market_data):
+    """
+    Generate morning market preview section.
+
+    Args:
+        market_data: The base market data dictionary
+
+    Returns:
+        Dictionary with market preview information
+    """
+    preview = {}
+
+    # Pre-market S&P 500 futures
+    preview["sp500_futures"] = fetch_premarket_futures()
+
+    # Pre-market VIX level
+    preview["vix_premarket"] = fetch_premarket_vix()
+
+    # Today's expirations (days_to_expiration == 0)
+    todays_expirations = []
+    if "action_recommendations" in market_data and market_data["action_recommendations"]:
+        expiring_this_week = market_data["action_recommendations"].get("expiring_this_week", [])
+        todays_expirations = [
+            pos for pos in expiring_this_week
+            if pos.get("days_to_expiration", 999) == 0
+        ]
+    preview["todays_expirations"] = todays_expirations
+    preview["todays_expirations_count"] = len(todays_expirations)
+
+    # Key positions to watch (high priority or expiring soon)
+    key_positions = []
+    if "action_recommendations" in market_data and market_data["action_recommendations"]:
+        all_positions = market_data["action_recommendations"].get("all_positions_by_priority", [])
+        # Top 5 positions by priority score
+        key_positions = all_positions[:5]
+    preview["key_positions_to_watch"] = key_positions
+
+    return preview
+
+
+def generate_market_close_recap(market_data):
+    """
+    Generate end-of-day market recap section.
+
+    Args:
+        market_data: The base market data dictionary
+
+    Returns:
+        Dictionary with market recap information
+    """
+    recap = {}
+
+    # Final market performance summary
+    sp500_data = market_data.get("indices", {}).get("sp500", {})
+    vix_data = market_data.get("indices", {}).get("vix", {})
+
+    recap["market_performance"] = {
+        "sp500": {
+            "close": sp500_data.get("current_price"),
+            "change_percent": sp500_data.get("daily_change_percent"),
+            "direction": "up" if sp500_data.get("daily_change_percent", 0) >= 0 else "down"
+        },
+        "vix": {
+            "close": vix_data.get("current_price"),
+            "change_percent": vix_data.get("daily_change_percent")
+        }
+    }
+
+    # Portfolio performance vs S&P 500
+    portfolio_data = market_data.get("portfolio", {})
+    portfolio_change = portfolio_data.get("total_portfolio_change_percent", 0)
+    sp500_change = sp500_data.get("daily_change_percent", 0)
+
+    recap["portfolio_vs_market"] = {
+        "portfolio_change_percent": portfolio_change,
+        "sp500_change_percent": sp500_change,
+        "relative_performance": round(portfolio_change - sp500_change, 2),
+        "outperformed": portfolio_change > sp500_change
+    }
+
+    # Top 3 gainers and losers by dollar amount
+    holdings = portfolio_data.get("per_stock_holdings", {})
+    holdings_list = list(holdings.values())
+
+    # Sort by daily change dollars
+    sorted_by_change = sorted(
+        holdings_list,
+        key=lambda x: x.get("daily_change_dollars", 0),
+        reverse=True
+    )
+
+    gainers = [h for h in sorted_by_change if h.get("daily_change_dollars", 0) > 0][:3]
+    losers = [h for h in sorted_by_change if h.get("daily_change_dollars", 0) < 0][-3:]
+    losers.reverse()  # Most negative first
+
+    recap["top_gainers"] = gainers
+    recap["top_losers"] = losers
+
+    # Options summary
+    options_data = market_data.get("options", {})
+    if options_data:
+        options_positions = options_data.get("options_positions", [])
+
+        # Find best and worst performing options by days_gain
+        best_option = None
+        worst_option = None
+
+        if options_positions:
+            sorted_by_gain = sorted(
+                options_positions,
+                key=lambda x: x.get("days_gain", 0),
+                reverse=True
+            )
+            best_option = sorted_by_gain[0] if sorted_by_gain else None
+            worst_option = sorted_by_gain[-1] if sorted_by_gain else None
+
+        recap["options_summary"] = {
+            "total_options_pnl": options_data.get("total_options_change_dollars", 0),
+            "total_options_pnl_percent": options_data.get("total_options_change_percent", 0),
+            "best_performing": {
+                "symbol": best_option.get("symbol") if best_option else None,
+                "days_gain": best_option.get("days_gain") if best_option else None
+            } if best_option else None,
+            "worst_performing": {
+                "symbol": worst_option.get("symbol") if worst_option else None,
+                "days_gain": worst_option.get("days_gain") if worst_option else None
+            } if worst_option else None
+        }
+    else:
+        recap["options_summary"] = None
+
+    # Positions needing attention tomorrow
+    attention_tomorrow = []
+    if "action_recommendations" in market_data and market_data["action_recommendations"]:
+        # Positions expiring in 1 day or with high priority
+        all_positions = market_data["action_recommendations"].get("all_positions_by_priority", [])
+        for pos in all_positions:
+            days_to_exp = pos.get("days_to_expiration", 999)
+            priority = pos.get("combined_priority_score", 0)
+            # Expiring tomorrow or high urgency
+            if days_to_exp == 1 or priority >= 70:
+                attention_tomorrow.append(pos)
+    recap["positions_needing_attention_tomorrow"] = attention_tomorrow
+
+    return recap
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 # Orchestrates the script execution and handles output formatting
@@ -596,6 +979,14 @@ def main():
             data = get_sample_data()
         else:
             data = fetch_market_data()
+
+        # Add timing-specific sections if --timing flag is provided
+        if args.timing == "morning":
+            data["summary_type"] = "morning_preview"
+            data["market_preview"] = generate_morning_preview(data)
+        elif args.timing == "close":
+            data["summary_type"] = "market_close"
+            data["market_recap"] = generate_market_close_recap(data)
 
         # Output results as formatted JSON to stdout
         print(json.dumps(data, indent=2))
